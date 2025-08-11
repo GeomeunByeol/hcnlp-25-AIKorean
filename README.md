@@ -37,7 +37,7 @@ inference  # 추론
 
 requirements.txt</pre>
 
-## 최종 모델(라우팅) 사용법
+## 최종 모델(라우팅)
 1. [데이터](https://kli.korean.go.kr/benchmark/taskOrdtm/taskDownload.do?taskOrdtmId=180&clCd=ING_TASK&subMenuId=sub02) 받아 resource/QA 폴더 아래 위치
 2. ```pip install -r requirements.txt```
 3. inference/run_routing.sh 실행 시 허깅페이스에서 모델 다운로드 후 모델 추론 시작 (모든 모델 CPU에 로드 후 필요할 때만 GPU에 로드하므로 RTX 4090 하나에서 가동 가능)
@@ -55,7 +55,7 @@ CUDA_VISIBLE_DEVICES=0 python run.py \
 ```
 4. 완료 후 output 폴더 아래 117.json 파일 생성 (정답 파일)
 
-## 비교 모델(하나의 파이프라인) 사용법
+## 비교 모델(하나의 파이프라인)
 - inference/run_pipeline.sh 실행
 ```bash
 OUTPUT_FILE=../output/pipeline.json
@@ -73,7 +73,7 @@ CUDA_VISIBLE_DEVICES=3 python run.py \
 ```
 
 
-## 학습부터 하는 법
+## 학습
 ### SFT만
 - train/run_sft.sh 실행
 ### CPT + SFT
