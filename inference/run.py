@@ -67,7 +67,7 @@ def _ensure_output_dir(path: str):
 
 
 def _load_prompts(args):
-    # 파일 경로 통일: 상대경로 혼재 문제 해결
+    '''프롬프트 로드'''
     def _read(p):
         with open(p, "r", encoding="utf-8") as f:
             return f.read()
@@ -89,6 +89,7 @@ def _load_prompts(args):
 
 
 def _load_data(input_path: str):
+    '''데이터 로드'''
     with open("../resource/QA/korean_culture_qa_V1.0_dev+.json", 'r', encoding='utf-8') as f:
         dev_data = json.load(f)
     with open(input_path, "r", encoding="utf-8") as f:
@@ -97,6 +98,7 @@ def _load_data(input_path: str):
 
 
 def _select_thresholds(q_type: str, args):
+    '''RAG에서 임계치 설정'''
     if q_type == "서술형":
         return args.scaling_factor_desc, args.min_threshold_desc
     else:
@@ -104,6 +106,7 @@ def _select_thresholds(q_type: str, args):
     
 
 def _maybe_rag(input_data, expanded_question, args, rag_chain, q_type: str):
+    '''문서 검색(RAG)'''
     if args.context_type != "rag" or rag_chain is None:
         return None
     scaling, min_th = _select_thresholds(q_type, args)
@@ -122,6 +125,7 @@ def _maybe_rag(input_data, expanded_question, args, rag_chain, q_type: str):
 
 
 def _build_few_shot_messages(few_shots, type_instructions_basic, type_instructions_basic_noex, args, rag_chain):
+    '''Few-Shot 구성'''
     messages = []
     for i, shot in enumerate(few_shots):
         # 첫 샷만 예시 포함 instruction, 이후는 _noex
@@ -134,6 +138,7 @@ def _build_few_shot_messages(few_shots, type_instructions_basic, type_instructio
     
 
 def _extract_answer(q_type: str, output_text: str):
+    '''정답 추출'''
     if q_type == "서술형":
         return {"answer": output_text}
 
@@ -167,6 +172,7 @@ def _extract_answer(q_type: str, output_text: str):
 # Prompt builders
 # ---------------------------
 def routing_chat_prompt(result, idx, type_instructions, args, rag_chain=None):
+    '''라우팅 프롬프트 구성'''
     input_data = result[idx]['input']
     original_question = input_data['question']
     q_type = input_data['question_type']
@@ -175,7 +181,7 @@ def routing_chat_prompt(result, idx, type_instructions, args, rag_chain=None):
     instruction = type_instructions.get(q_type, "")
     chat_parts = [instruction]
 
-    # RAG (routing에서도 동일 정책 적용)
+    # RAG
     expanded_question = f"{topic_keyword}: {original_question}" if topic_keyword else original_question
     context = _maybe_rag(input_data, expanded_question, args, rag_chain, q_type)
     if context:
@@ -195,6 +201,7 @@ def routing_chat_prompt(result, idx, type_instructions, args, rag_chain=None):
 
 
 def pipeline_chat_prompt(result, idx, type_instructions, args, rag_chain=None):
+    '''파이프라인 프롬프트 구성'''
     input_data = result[idx]['input']
     original_question = input_data['question']
     q_type = input_data['question_type']
@@ -229,6 +236,7 @@ def pipeline_chat_prompt(result, idx, type_instructions, args, rag_chain=None):
 
 
 def rout_basic_infer(tokenizer, model, inp, terminators, device, max_len, temperature, top_p, repetition_penalty, decoding_type, dola_layer):
+    '''라우팅(CPU->GPU->CPU)'''
     model.to("cuda:0")
     generation_args = {
         "input_ids": inp.to("cuda:0").unsqueeze(0),
@@ -279,7 +287,6 @@ def routing_main(args):
     system_prompt_brief, system_prompt_desc, type_inst, type_inst_noex = _load_prompts(args)
     dev_data, result = _load_data(args.input)
 
-    # RAG
     rag_chain = None
     if args.context_type == "rag":
         rag_chain = RAG_Chain(embedding_path=args.embedding_path,
@@ -311,7 +318,7 @@ def routing_main(args):
             temperature, top_p = args.temperature, args.top_p
         elif q_type == "단답형":
             tok, model, terms = dan_tok, dan_model, dan_terms
-            temperature, top_p = 0.6, 0.9  # 기존 로직 유지
+            temperature, top_p = 0.6, 0.9
         else:
             tok, model, terms = seo_tok, seo_model, seo_terms
             temperature, top_p = args.temperature, args.top_p
@@ -340,7 +347,6 @@ def pipeline_main(args):
     system_prompt_brief, system_prompt_desc, type_inst, type_inst_noex = _load_prompts(args)
     dev_data, result = _load_data(args.input)
 
-    # RAG
     rag_chain = None
     if args.context_type == "rag":
         rag_chain = RAG_Chain(embedding_path=args.embedding_path,
