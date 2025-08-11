@@ -4,22 +4,24 @@ HCNLP팀 \
 
 ## 구조
 <pre>
-index
 output
+  
 prompt
-resource / QA
+  
+resource / QA  # 데이터
 ├── korean_culture_qa_V1.0_dev+.json
 ├── korean_culture_qa_V1.0_test+.json
 └── korean_culture_qa_V1.0_train+.json
 
-train
+train  # 훈련
 ├── cpt+sft.py
 ├── run_cpt+sft.sh
 ├── sft.sh
 └── run_train.sh
   
-inference
-├── SkipLayer
+inference  # 추론
+├── qdrant_data / collection / rag_collection  # 인덱스
+├── SkipLayer  # 디코딩 방식 중 SkipLayer
       ├── compute_skip_layer.py
       ├── llama_contrastive_skip_model.py
       ├── model_loading.py
@@ -29,8 +31,9 @@ inference
       └── stats.py
 ├── model_load.py
 ├── rag.py
-├── run_routing.sh
-└── run_train.py
+├── run.py  # 메인
+├── run_pipeline.sh  # 하나의 파이프라인으로 실행
+└── run_routing.sh  # 문제 유형에 따라 라우팅
 
 requirements.txt</pre>
 
@@ -53,6 +56,20 @@ CUDA_VISIBLE_DEVICES=0 python run.py \
 4. 완료 후 output 폴더 아래 117.json 파일 생성 (정답 파일)
 
 ## 비교 모델(하나의 파이프라인) 사용법
+- run_pipeline.sh 실행
+```bash
+OUTPUT_FILE=../output/pipeline.json
+CUDA_VISIBLE_DEVICES=3 python run.py \
+    --type pipeline \
+    --input ../resource/QA/korean_culture_qa_V1.0_test+.json \
+    --output "$OUTPUT_FILE" \
+    --device cuda:0 \
+    --context_type rag \  # rag 사용하지 않으려면 없애기
+    --decoding_type sl-d \  # skiplayer 사용하지 않으려면 없애기
+    --max_len 2048 \
+    --temperature 0.4 \
+    --top_p 0.6
+```
 
 
 ## 학습부터 하는 법
