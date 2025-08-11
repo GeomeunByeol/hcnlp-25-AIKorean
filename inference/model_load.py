@@ -57,6 +57,7 @@ class ModelLoader:
             model_args["torch_dtype"] = torch.float32
 
         if 'sl' in decoding_type:
+            print("SkipLayer ON")
             # decoding_type sl-h는 랜덤하게 layer 건너 뛴 걸 아마추어 모델로 사용. sh-d는 엔트로피 고려하여 layer 건너 뜀.
             tokenizer, model = setup_model(
                     algorithm=decoding_type,

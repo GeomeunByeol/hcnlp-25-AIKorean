@@ -11,8 +11,6 @@ from transformers import set_seed, TrainingArguments, AutoTokenizer, AutoModelFo
 from trl import SFTTrainer
 from peft import prepare_model_for_kbit_training, LoraConfig, get_peft_model, TaskType
 
-import wandb
-
 parser = argparse.ArgumentParser(prog="test", description="Testing about Conversational Context Inference.")
 
 g = parser.add_argument_group("Common Parameter")
@@ -30,8 +28,8 @@ g.add_argument('--batch_size', type=int, default=4)
 g.add_argument('--gradient_accumulation_steps', type=int, default=4)
 g.add_argument('--num_epochs', type=int, default=3)
 g.add_argument('--seed', type=int, default=42)
-g.add_argument('--wandb_key', type=str, required=True)
-g.add_argument('--wandb_project_name', type=str, default="Korean_25_Training")
+# g.add_argument('--wandb_key', type=str, required=True)
+# g.add_argument('--wandb_project_name', type=str, default="Korean_25_Training")
 g.add_argument('--experiment_name', type=str, default="sft")
 
 
@@ -84,11 +82,11 @@ def generate_prompt(example, tokenizer, type_instructions, sys_prompt):
 
 
 def main(args):
-    wandb.login(key=args.wandb_key) 
+    # wandb.login(key=args.wandb_key) 
 
     set_seed(args.seed)
 
-    os.environ["WANDB_PROJECT"] = args.wandb_project_name
+    # os.environ["WANDB_PROJECT"] = args.wandb_project_name
 
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     torch.cuda.set_device(local_rank)
@@ -99,8 +97,7 @@ def main(args):
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_id)
 
-    with open("../prompt/system_prompt_desc.txt", "r", encoding="utf-8") as f:
-        sys_prompt = f.read()
+    sys_prompt = 'You are a helpful AI assistant.\n당신은 한국의 전통 문화와 역사, 문법, 사회, 과학기술 등 다양한 분야에 대해 잘 알고 있는 유능한 AI 어시스턴트이다.\n한국어와 영어로 생각하고, 한국어로 답하시오.\n\n[기타 정보]를 답변에 충실히 반영하시오.'
 
     with open("../prompt/type_instructions_basic_noex.json", "r") as f:
         type_instructions = json.load(f)
@@ -170,10 +167,10 @@ def main(args):
         bf16=True,
         tf32=True,
         max_grad_norm=1.0,
-        lr_scheduler_type="cosine",
+        lr_scheduler_type="constant",
         warmup_ratio=args.warmup_ratio,
         push_to_hub=False,
-        report_to="wandb",
+        # report_to="wandb",
         save_total_limit=0 ,
         ddp_find_unused_parameters=False
     )

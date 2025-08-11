@@ -1,6 +1,6 @@
-OUTPUT_FILE=../output/117.json
+OUTPUT_FILE=../output/pipeline.json
 
-CUDA_VISIBLE_DEVICES=3 python run.py \
+CUDA_VISIBLE_DEVICES=0 python run.py \
     --type pipeline \
     --input ../resource/QA/korean_culture_qa_V1.0_test+.json \
     --output "$OUTPUT_FILE" \
