@@ -11,7 +11,7 @@ import torch
 from transformers import set_seed
 
 from model_load import *
-# from rag import *
+from rag import *
 
 parser = argparse.ArgumentParser(prog="test", description="Testing about Conversational Context Inference.")
 
@@ -24,10 +24,10 @@ g.add_argument("--input", type=str, required=True, help="input filename")
 g.add_argument("--output", type=str, required=True, help="output filename")
 
 # 모델 선택
-g.add_argument("--seon_model_id", type=str, required=True, help="라우팅에서 선다형을 위한 모델")
-g.add_argument("--dan_model_id", type=str, required=True, help="라우팅에서 단답형을 위한 모델")
-g.add_argument("--seo_model_id", type=str, required=True, help="라우팅에서 서술형을 위한 모델")
-g.add_argument("--model_id", type=str, help="파이프라인 단일 모델")
+g.add_argument("--seon_model_id", type=str, help="라우팅에서 선다형을 위한 모델")
+g.add_argument("--dan_model_id", type=str, help="라우팅에서 단답형을 위한 모델")
+g.add_argument("--seo_model_id", type=str, help="라우팅에서 서술형을 위한 모델")
+g.add_argument("--model_id", type=str, default="K-intelligence/Midm-2.0-Base-Instruct", help="파이프라인 단일 모델")
 
 g.add_argument("--quant", type=str, default=None, choices=["4", "8"], help="quantization(bit)")
 g.add_argument("--device", type=str, default="cpu", help="device to load the model")
@@ -39,9 +39,9 @@ g.add_argument("--dola_layer", type=str, default=None, help="dola layers. 'high'
 
 # RAG
 g.add_argument("--context_type", type=str, default="basic", choices=["rag"], help="engine type")
-g.add_argument("--embedding_path", type=str, help="Qdrant DB가 저장된 경로")
-g.add_argument("--embedding_model", type=str, help="embedding_model")
+g.add_argument("--embedding_path", type=str, default="./qdrant_data", help="Qdrant DB가 저장된 경로")
 g.add_argument("--collection_name", type=str, default="rag_collection", help="Qdrant 컬렉션 이름")
+g.add_argument("--embedding_model", type=str, default="Qwen/Qwen3-Embedding-8B", help="embedding_model")
 g.add_argument("--k", type=int, default=5, help="검색할 초기 후보 문서 수(Candidate 수)")
 g.add_argument("--min_threshold_desc", type=float, default=0.4, help="[서술형] 동적 임계값의 최저 한계값")
 g.add_argument("--min_threshold_obj", type=float, default=0.6, help="[선다/단답형] 동적 임계값의 최저 한계값")
@@ -66,7 +66,7 @@ def _ensure_output_dir(path: str):
         os.makedirs(out_dir, exist_ok=True)
 
 
-def _load_prompts():
+def _load_prompts(args):
     # 파일 경로 통일: 상대경로 혼재 문제 해결
     def _read(p):
         with open(p, "r", encoding="utf-8") as f:
@@ -75,10 +75,16 @@ def _load_prompts():
                           'You are a helpful AI assistant.\n당신은 한국의 전통 문화와 역사, 문법, 사회, 과학기술 등 다양한 분야에 대해 잘 알고 있는 유능한 AI 어시스턴트이다.\n한국어와 영어로 생각하고, 한국어로 답하시오.\n\n[기타 정보]를 답변에 충실히 반영하시오.'
     system_prompt_desc  = _read("../prompt/system_prompt_desc.txt") if os.path.exists("../prompt/system_prompt_desc.txt") else \
                           'You are a helpful AI assistant.\n당신은 한국의 전통 문화와 역사, 문법, 사회, 과학기술 등 다양한 분야에 대해 잘 알고 있는 유능한 AI 어시스턴트이다.\n한국어와 영어로 생각하고, 한국어로 답하시오.\n동일한 문장을 절대 반복하지 마시오.\n300 ~ 500자 사이로 답변하시오.'
-    with open("../prompt/type_instructions_basic.json", "r", encoding="utf-8") as f:
-        type_instructions_basic = json.load(f)
-    with open("../prompt/type_instructions_basic_noex.json", "r", encoding="utf-8") as f:
-        type_instructions_basic_noex = json.load(f)
+    if args.context_type == "rag":
+        with open("../prompt/type_instructions_rag.json", "r", encoding="utf-8") as f:
+            type_instructions_basic = json.load(f)
+        with open("../prompt/type_instructions_rag_noex.json", "r", encoding="utf-8") as f:
+            type_instructions_basic_noex = json.load(f)
+    else:
+        with open("../prompt/type_instructions_basic.json", "r", encoding="utf-8") as f:
+            type_instructions_basic = json.load(f)
+        with open("../prompt/type_instructions_basic_noex.json", "r", encoding="utf-8") as f:
+            type_instructions_basic_noex = json.load(f)
     return system_prompt_brief, system_prompt_desc, type_instructions_basic, type_instructions_basic_noex
 
 
@@ -101,6 +107,7 @@ def _maybe_rag(input_data, expanded_question, args, rag_chain, q_type: str):
     if args.context_type != "rag" or rag_chain is None:
         return None
     scaling, min_th = _select_thresholds(q_type, args)
+    
     docs_with_scores = rerank_retrieve_with_dynamic_threshold(
         rag_chain,
         expanded_question,
@@ -109,7 +116,8 @@ def _maybe_rag(input_data, expanded_question, args, rag_chain, q_type: str):
         min_threshold=min_th,
         scaling_factor=scaling
     )
-    context = "\n".join([f"[문서 {i + 1}]\n{doc.page_content}" for i, doc in enumerate(docs_with_scores)])
+    # print(docs_with_scores)
+    context = "\n".join([f"[문서 {i + 1}]\n{document.page_content}" for i, (document, score) in enumerate(docs_with_scores)])
     return context
 
 
@@ -220,7 +228,7 @@ def pipeline_chat_prompt(result, idx, type_instructions, args, rag_chain=None):
     return chat, persona
 
 
-def basic_infer(tokenizer, model, inp, terminators, device, max_len, temperature, top_p, repetition_penalty, decoding_type, dola_layer):
+def rout_basic_infer(tokenizer, model, inp, terminators, device, max_len, temperature, top_p, repetition_penalty, decoding_type, dola_layer):
     model.to("cuda:0")
     generation_args = {
         "input_ids": inp.to("cuda:0").unsqueeze(0),
@@ -243,11 +251,32 @@ def basic_infer(tokenizer, model, inp, terminators, device, max_len, temperature
     return tokenizer.decode(outputs[0][inp.shape[-1]:], skip_special_tokens=True)
 
 
+def basic_infer(tokenizer, model, inp, terminators, device, max_len, temperature, top_p, repetition_penalty, decoding_type, dola_layer):
+    generation_args = {
+        "input_ids": inp.unsqueeze(0),
+        "max_new_tokens": max_len,
+        "eos_token_id": terminators,
+        "pad_token_id": tokenizer.eos_token_id,
+        "repetition_penalty": repetition_penalty,
+        "temperature": temperature,
+        "top_p": top_p,
+        "do_sample": True
+    }
+    if decoding_type == "dola":
+        if dola_layer is not None and "[" in dola_layer:
+            dola_layer = ast.literal_eval(dola_layer)
+        generation_args["dola_layers"] = dola_layer
+
+    outputs = model.generate(**generation_args)
+    torch.cuda.empty_cache()
+    return tokenizer.decode(outputs[0][inp.shape[-1]:], skip_special_tokens=True)
+
+
 def routing_main(args):
     set_seed(args.seed)
     _ensure_output_dir(args.output)
 
-    system_prompt_brief, system_prompt_desc, type_inst, type_inst_noex = _load_prompts()
+    system_prompt_brief, system_prompt_desc, type_inst, type_inst_noex = _load_prompts(args)
     dev_data, result = _load_data(args.input)
 
     # RAG
@@ -289,7 +318,7 @@ def routing_main(args):
 
         chat_args = {"conversation": messages, "add_generation_prompt": True, "enable_thinking": False, "return_tensors": "pt"}
         inp = tok.apply_chat_template(**chat_args)
-        output_text = basic_infer(tok, model, inp[0], terms,
+        output_text = rout_basic_infer(tok, model, inp[0], terms,
                                   args.device, args.max_len,
                                   temperature, top_p,
                                   args.repetition_penalty,
@@ -308,7 +337,7 @@ def pipeline_main(args):
     set_seed(args.seed)
     _ensure_output_dir(args.output)
 
-    system_prompt_brief, system_prompt_desc, type_inst, type_inst_noex = _load_prompts()
+    system_prompt_brief, system_prompt_desc, type_inst, type_inst_noex = _load_prompts(args)
     dev_data, result = _load_data(args.input)
 
     # RAG
@@ -332,6 +361,7 @@ def pipeline_main(args):
         fs_msgs = _build_few_shot_messages(few_shots, type_inst, type_inst_noex, args, rag_chain)
         chat, persona = pipeline_chat_prompt(result, idx, type_inst, args, rag_chain=rag_chain)
         messages = [{"role": "system", "content": system_prompt + "\n\n" + persona}] + fs_msgs + [{"role": "user", "content": chat}]
+        print(messages)
 
         chat_args = {"conversation": messages, "add_generation_prompt": True, "enable_thinking": False, "return_tensors": "pt"}
         inp = tokenizer.apply_chat_template(**chat_args)
@@ -343,6 +373,7 @@ def pipeline_main(args):
                                   args.dola_layer)
 
         result[idx]["generation"] = output_text
+        print(output_text)
         result[idx]["output"] = _extract_answer(q_type, output_text)
 
     with open(args.output, "w", encoding="utf-8") as f:

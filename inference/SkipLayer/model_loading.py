@@ -11,8 +11,6 @@ from .llama_contrastive_skip_model import batch_skip_decoder_layer_hook
 import warnings
 import os
 
-os.environ["DEVICE_MAP"] = "none"
-
 
 class ContrastiveDecodeWithDifferentPromptModel(PreTrainedModel):
     def __init__(
@@ -283,9 +281,11 @@ def load_hf_model(
         #     1: '8GiB',
         #     2: '8GiB',
         # },
-        torch_dtype=torch_dtype,
+        # torch_dtype=torch_dtype,
+        torch_dtype=torch.bfloat16,
         low_cpu_mem_usage=True,
-        use_flash_attention_2=use_flash_attention_2,
+        # use_flash_attention_2=use_flash_attention_2,
+        attn_implementation="flash_attention_2",
         trust_remote_code=True,
         **kwargs,
     )
@@ -294,7 +294,10 @@ def load_hf_model(
 
 def load_tokenizer(path: str) -> PreTrainedTokenizer:
     use_fast = bool(os.environ.get('FAST_TOK', False))
-    tokenizer = AutoTokenizer.from_pretrained(path, use_fast=use_fast, legacy=False, trust_remote_code=True)
+    # tokenizer = AutoTokenizer.from_pretrained(path, use_fast=use_fast, legacy=False, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(path, use_fast=True, trust_remote_code=True)
+    print("**********path", path)
+    print("****************tokenizer:", tokenizer)
     tokenizer.padding_side = 'left'
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = tokenizer.eos_token_id

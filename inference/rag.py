@@ -11,11 +11,12 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models as rest
 from typing import List, Dict
 import torch
+import numpy as np
 
 
 class RAG_Builder:
     """
-    JSON 데이터를 읽어 FAISS Vector DB를 구축하고 저장하는 클래스.
+    JSON 데이터를 읽어 DB를 구축하고 저장하는 클래스.
     """
     def __init__(self, data_path: str, model_name: str, device: str = 'cpu'):
         self.data_path = data_path
