@@ -77,7 +77,7 @@ CUDA_VISIBLE_DEVICES=3 python run.py \
 ### SFT만
 - train/run_sft.sh 실행
 ### CPT + SFT
-- train.run_cpt+sft.sh 실행
+- train/run_cpt+sft.sh 실행
 
 
 ## 참고
